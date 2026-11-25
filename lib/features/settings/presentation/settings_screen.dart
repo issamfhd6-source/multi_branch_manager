@@ -34,11 +34,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _isDark = widget.darkMode;
   }
 
-  Future<void> _toggleDark(bool val) async {
+  void _toggleDark(bool val) {
     setState(() => _isDark = val);
     widget.onDarkModeChanged(val);
     try {
-      await widget.settingsService.saveSetting(
+      widget.settingsService.saveSetting(
         session: widget.session,
         key: 'dark_mode',
         value: val,
