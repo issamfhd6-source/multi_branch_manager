@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../reset/data/reset_service.dart';
 import '../../users/domain/auth_models.dart';
-import '../data/settings_service.dart';
+import '../data/app_settings_store.dart';
 
 class SettingsScreen extends StatefulWidget {
-  final SettingsService settingsService;
+  final AppSettingsStore settingsService;
   final ResetService resetService;
   final AuthSession session;
   final bool darkMode;
