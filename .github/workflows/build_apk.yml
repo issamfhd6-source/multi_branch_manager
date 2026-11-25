@@ -47,6 +47,15 @@ jobs:
           sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdk 34/g' android/app/build.gradle*
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle*
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdk 21/g' android/app/build.gradle*
+          python3 - <<'EOF'
+          p = "android/build.gradle"
+          with open(p, "r", encoding="utf-8") as f:
+              content = f.read()
+          block = "ext {\n    flutter = [\n        compileSdkVersion: 34,\n        targetSdkVersion: 34,\n        minSdkVersion: 21,\n        ndkVersion: '25.1.8937393'\n    ]\n}\n\n"
+          if "flutter = [" not in content:
+              with open(p, "w", encoding="utf-8") as f:
+                  f.write(block + content)
+          EOF
 
       - name: Build release APK
         run: flutter build apk --release
@@ -56,4 +65,3 @@ jobs:
         with:
           name: multi-branch-manager-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-          
