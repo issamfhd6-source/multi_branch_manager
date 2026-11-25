@@ -47,6 +47,20 @@ jobs:
           sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdk 34/g' android/app/build.gradle*
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle*
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdk 21/g' android/app/build.gradle*
+          cat << 'EOF' >> android/build.gradle
+
+          subprojects {
+              afterEvaluate { project ->
+                  if (project.hasProperty('android')) {
+                      project.android {
+                          if (compileSdkVersion == null) {
+                              compileSdkVersion 34
+                          }
+                      }
+                  }
+              }
+          }
+          EOF
 
       - name: Build release APK
         run: flutter build apk --release
