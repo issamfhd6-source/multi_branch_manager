@@ -75,9 +75,13 @@ class InventoryService {
     final skuVal = (r.sku ?? '').toString();
     final nameVal = (r.name ?? '').toString();
     final unitVal = (r.unit ?? 'قطعة').toString();
-    final wholesaleVal = _toDouble(r.wholesale ?? r.wholesalePrice ?? r.unitPriceNewSyp);
+    final wholesaleVal =
+        _toDouble(r.wholesale ?? r.wholesalePrice ?? r.unitPriceNewSyp);
     final minStockVal = _toDouble(r.minStock ?? r.min_stock ?? 0);
-    final priceVal = _toDouble(r.price ?? r.unitPriceNewSyp ?? r.unit_price_new_syp ?? 0);
+    final priceVal =
+        _toDouble(r.price ?? r.unitPriceNewSyp ?? r.unit_price_new_syp ?? 0);
+    final costVal =
+        _toDouble(r.cost ?? r.costPrice ?? r.wholesale ?? priceVal);
 
     return ProductModel(
       id: idVal,
@@ -87,6 +91,7 @@ class InventoryService {
       wholesale: wholesaleVal,
       minStock: minStockVal,
       price: priceVal,
+      cost: costVal,
     );
   }
 
