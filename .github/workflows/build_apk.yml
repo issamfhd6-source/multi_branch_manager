@@ -25,6 +25,11 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Install Android SDK 34
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -65,22 +70,10 @@ jobs:
                       f"ext.kotlin_version = '{kotlin_ver}'",
                       r_text,
                   )
-              else:
-                  r_text = (
-                      "ext {\n"
-                      f"    kotlin_version = '{kotlin_ver}'\n"
-                      "    flutter = [\n"
-                      "        compileSdkVersion: 34,\n"
-                      "        targetSdkVersion: 34,\n"
-                      "        minSdkVersion: 21,\n"
-                      "        ndkVersion: '25.1.8937393'\n"
-                      "    ]\n"
-                      "}\n\n"
-                      + r_text
-                  )
               if "flutter = [" not in r_text:
                   r_text = (
                       "ext {\n"
+                      f"    kotlin_version = '{kotlin_ver}'\n"
                       "    flutter = [\n"
                       "        compileSdkVersion: 34,\n"
                       "        targetSdkVersion: 34,\n"
