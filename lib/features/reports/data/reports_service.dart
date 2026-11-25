@@ -8,38 +8,41 @@ class ReportsService {
 
   ReportsService(this._db, this._permissions);
 
-  Future> buildSalesSummary({
+  Map<String, dynamic> buildSalesSummary({
     required AuthSession session,
     required String branchId,
-  }) async {
-    await _permissions.enforce(
+  }) {
+    _permissions.enforce(
       session: session,
       action: 'view_reports',
       entity: 'invoices',
     );
 
-    final invoices = await (_db.select(_db.invoices)
-          ..where((t) => t.branchId.equals(branchId)))
-        .get();
+    final query = _db.select(_db.invoices)
+      ..where((t) => t.branchId.equals(branchId));
 
     double totalNewSyp = 0;
     double totalUsd = 0;
     int paidCount = 0;
+    int invoicesCount = 0;
 
-    for (final inv in invoices) {
-      final dynamic row = inv;
-      final newVal = row.totalNewSyp ?? row.total_new_syp ?? 0;
-      final usdVal = row.totalUsd ?? row.total_usd ?? 0;
-      final statusVal = row.status ?? '';
+    query.get().then((invoices) {
+      invoicesCount = invoices.length;
+      for (final inv in invoices) {
+        final dynamic row = inv;
+        final newVal = row.totalNewSyp ?? row.total_new_syp ?? 0;
+        final usdVal = row.totalUsd ?? row.total_usd ?? 0;
+        final statusVal = row.status ?? '';
 
-      if (newVal is num) totalNewSyp += newVal.toDouble();
-      if (usdVal is num) totalUsd += usdVal.toDouble();
-      if (statusVal == 'paid') paidCount++;
-    }
+        if (newVal is num) totalNewSyp += newVal.toDouble();
+        if (usdVal is num) totalUsd += usdVal.toDouble();
+        if (statusVal == 'paid') paidCount++;
+      }
+    });
 
     return {
       'branch_id': branchId,
-      'invoices_count': invoices.length,
+      'invoices_count': invoicesCount,
       'paid_invoices_count': paidCount,
       'total_new_syp': totalNewSyp,
       'total_old_syp': totalNewSyp * 100,
