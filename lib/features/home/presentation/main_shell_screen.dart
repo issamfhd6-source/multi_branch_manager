@@ -58,11 +58,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
   void initState() {
     super.initState();
     _audit = AuditService(widget.db);
-    _permissions = PermissionMiddleware(
-      widget.db,
-      _audit,
-      const Duration(hours: 24),
-    );
+    _permissions = PermissionMiddleware(widget.db, _audit);
     _rateService = ExchangeRateService(widget.db, _permissions, _audit);
     _inventoryService =
         InventoryService(widget.db, _permissions, _audit, _rateService);
