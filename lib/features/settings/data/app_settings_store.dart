@@ -16,13 +16,15 @@ class AppSettingsStore {
       'dark_mode': false,
       'dual_syp_ratio': 100,
     };
-    for (final r in rows) {
-      try {
-        map[r.key] = jsonDecode(r.value);
-      } catch (_) {
-        map[r.key] = r.value;
+    rows.then((items) {
+      for (final r in items) {
+        try {
+          map[r.key] = jsonDecode(r.value);
+        } catch (_) {
+          map[r.key] = r.value;
+        }
       }
-    }
+    });
     return map;
   }
 
