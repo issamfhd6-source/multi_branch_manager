@@ -53,17 +53,32 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
+  double _readPriceNewSyp(ProductModel? item) {
+    if (item == null) return 0.0;
+    final dynamic d = item;
+    final raw = d.unitPriceNewSyp ?? d.unit_price_new_syp ?? d.priceNewSyp ?? 0.0;
+    return SafeNumberParser.parseDouble(raw);
+  }
+
+  double _readStockQty(ProductModel? item) {
+    if (item == null) return 0.0;
+    final dynamic d = item;
+    final raw = d.stockQty ?? d.stock_qty ?? d.quantity ?? 0.0;
+    return SafeNumberParser.parseDouble(raw);
+  }
+
   Future<void> _openProductDialog({ProductModel? existing}) async {
+    final dynamic ex = existing;
     final idCtrl = TextEditingController(
-      text: existing?.id ?? 'prod_${DateTime.now().millisecondsSinceEpoch}',
+      text: (ex?.id ?? 'prod_${DateTime.now().millisecondsSinceEpoch}').toString(),
     );
-    final skuCtrl = TextEditingController(text: existing?.sku ?? '');
-    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final skuCtrl = TextEditingController(text: (ex?.sku ?? '').toString());
+    final nameCtrl = TextEditingController(text: (ex?.name ?? '').toString());
     final priceCtrl = TextEditingController(
-      text: existing != null ? existing.unitPriceNewSyp.toString() : '',
+      text: existing != null ? _readPriceNewSyp(existing).toString() : '',
     );
     final qtyCtrl = TextEditingController(
-      text: existing != null ? existing.stockQty.toString() : '0',
+      text: existing != null ? _readStockQty(existing).toString() : '0',
     );
 
     final saved = await showDialog<bool>(
@@ -177,13 +192,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   itemCount: _products.length,
                   itemBuilder: (context, index) {
                     final item = _products[index];
+                    final dynamic d = item;
+                    final qtyVal = _readStockQty(item);
+                    final priceVal = _readPriceNewSyp(item);
+
                     return Card(
                       margin: const EdgeInsets.only(bottom: 10),
                       child: ListTile(
-                        title: Text(item.name),
+                        title: Text((d?.name ?? '').toString()),
                         subtitle: Text(
-                          'SKU: ${item.sku} | الكمية: ${item.stockQty}\n'
-                          'السعر: ${DualSypFormatter.formatDualFromNew(item.unitPriceNewSyp)}',
+                          'SKU: ${(d?.sku ?? '').toString()} | الكمية: $qtyVal\n'
+                          'السعر: ${DualSypFormatter.formatDualFromNew(priceVal)}',
                         ),
                         trailing: IconButton(
                           icon: const Icon(Icons.edit),
