@@ -76,6 +76,8 @@ class InventoryService {
     final nameVal = (r.name ?? '').toString();
     final unitVal = (r.unit ?? 'قطعة').toString();
     final wholesaleVal = _toDouble(r.wholesale ?? r.wholesalePrice ?? r.unitPriceNewSyp);
+    final minStockVal = _toDouble(r.minStock ?? r.min_stock ?? 0);
+    final priceVal = _toDouble(r.price ?? r.unitPriceNewSyp ?? r.unit_price_new_syp ?? 0);
 
     return ProductModel(
       id: idVal,
@@ -83,6 +85,8 @@ class InventoryService {
       name: nameVal,
       unit: unitVal,
       wholesale: wholesaleVal,
+      minStock: minStockVal,
+      price: priceVal,
     );
   }
 
