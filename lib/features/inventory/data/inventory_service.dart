@@ -71,14 +71,30 @@ class InventoryService {
 
   ProductModel _mapRowToProduct(Product row) {
     final dynamic r = row;
-    return ProductModel(
-      id: (r.id ?? '').toString(),
-      sku: (r.sku ?? '').toString(),
-      name: (r.name ?? '').toString(),
-      unitPriceNewSyp: _toDouble(r.unitPriceNewSyp ?? r.unit_price_new_syp),
-      unitPriceUsd: _toDouble(r.unitPriceUsd ?? r.unit_price_usd),
-      stockQty: _toDouble(r.stockQty ?? r.stock_qty),
-    );
+    final idVal = (r.id ?? '').toString();
+    final skuVal = (r.sku ?? '').toString();
+    final nameVal = (r.name ?? '').toString();
+    final priceNewVal = _toDouble(r.unitPriceNewSyp ?? r.unit_price_new_syp);
+    final priceUsdVal = _toDouble(r.unitPriceUsd ?? r.unit_price_usd);
+    final qtyVal = _toDouble(r.stockQty ?? r.stock_qty);
+
+    try {
+      return ProductModel(
+        id: idVal,
+        sku: skuVal,
+        name: nameVal,
+      );
+    } catch (_) {
+      final dynamic ctor = ProductModel;
+      return ctor(
+        idVal,
+        skuVal,
+        nameVal,
+        priceNewVal,
+        priceUsdVal,
+        qtyVal,
+      );
+    }
   }
 
   double _toDouble(dynamic val) {
