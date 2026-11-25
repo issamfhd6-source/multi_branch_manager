@@ -31,6 +31,9 @@ jobs:
       - name: Static analysis
         run: flutter analyze
 
+      - name: Refresh Android Gradle files
+        run: flutter create --platforms=android --org com.example .
+
       - name: Build release APK
         run: flutter build apk --release
 
@@ -39,4 +42,3 @@ jobs:
         with:
           name: multi-branch-manager-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-          
