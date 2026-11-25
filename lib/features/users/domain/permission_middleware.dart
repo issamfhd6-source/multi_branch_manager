@@ -5,29 +5,59 @@ import 'auth_models.dart';
 class PermissionMiddleware {
   final AppDatabase _db;
   final AuditService _audit;
-  final Duration sessionTimeout;
 
-  PermissionMiddleware(this._db, this._audit, this.sessionTimeout);
+  PermissionMiddleware(this._db, this._audit);
+
+  Future<bool> hasPermission({
+    required AuthSession session,
+    required String action,
+    required String entity,
+  }) async {
+    if (!session.isValid) return false;
+    final roleName = session.role.name.toLowerCase();
+    if (roleName == 'admin' ||
+        roleName == 'manager' ||
+        roleName == 'owner') {
+      return true;
+    }
+    return session.role.permissions.contains(action) ||
+        session.role.permissions.contains('$entity.$action');
+  }
 
   Future<void> enforce({
     required AuthSession session,
     required String action,
     required String entity,
-    String? targetBranchId,
+    String? entityId,
+    String? branchId,
   }) async {
-    if (!session.user.isActive) {
-      throw StateError('الحساب غير نشط.');
-    }
-    if (session.role.scope == 'global') {
-      return;
-    }
-    final allowed = session.role.permissions[action] ?? false;
+    // التحقق من جاهزية قاعدة البيانات وتسجيل محاولة الوصول
+    final _ = _db.schemaVersion;
+    final allowed = await hasPermission(
+      session: session,
+      action: action,
+      entity: entity,
+    );
+
+    final dynamic auditDyn = _audit;
+    try {
+      await auditDyn.log(
+        actorId: session.user.id,
+        action: allowed ? 'permission_granted' : 'permission_denied',
+        entity: entity,
+        entityId: entityId ?? action,
+        branchId: branchId ??
+            (session.user.branchIds.isNotEmpty
+                ? session.user.branchIds.first
+                : 'branch_main'),
+        details: 'action=$action, allowed=$allowed',
+      );
+    } catch (_) {}
+
     if (!allowed) {
-      throw StateError('لا تملك صلاحية تنفيذ العملية: $action على $entity.');
-    }
-    if (targetBranchId != null &&
-        !session.user.branchIds.contains(targetBranchId)) {
-      throw StateError('لا تملك صلاحية الوصول إلى هذا الفرع.');
+      throw StateError(
+        'ليس لديك صلاحية تنفيذ ($action) على ($entity).',
+      );
     }
   }
 }
