@@ -63,7 +63,7 @@ class PosService {
       session: session,
       action: 'create_sale',
       entity: 'invoices',
-      targetBranchId: branchId,
+      branchId: branchId,
     );
 
     final validLines = lines.where((l) => l.qty > 0).toList();
