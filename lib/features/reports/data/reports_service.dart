@@ -1,5 +1,4 @@
 import '../../../core/database/app_database.dart';
-import '../../../core/models/domain_models.dart';
 import '../../users/domain/auth_models.dart';
 import '../../users/domain/permission_middleware.dart';
 
@@ -9,7 +8,7 @@ class ReportsService {
 
   ReportsService(this._db, this._permissions);
 
-  Future<SalesSummaryModel> buildSalesSummary({
+  Future> buildSalesSummary({
     required AuthSession session,
     required String branchId,
   }) async {
@@ -35,13 +34,13 @@ class ReportsService {
       }
     }
 
-    return SalesSummaryModel(
-      branchId: branchId,
-      invoicesCount: invoices.length,
-      paidInvoicesCount: paidCount,
-      totalNewSyp: totalNewSyp,
-      totalOldSyp: totalNewSyp * 100,
-      totalUsd: totalUsd,
-    );
+    return {
+      'branch_id': branchId,
+      'invoices_count': invoices.length,
+      'paid_invoices_count': paidCount,
+      'total_new_syp': totalNewSyp,
+      'total_old_syp': totalNewSyp * 100,
+      'total_usd': totalUsd,
+    };
   }
 }
