@@ -74,27 +74,16 @@ class InventoryService {
     final idVal = (r.id ?? '').toString();
     final skuVal = (r.sku ?? '').toString();
     final nameVal = (r.name ?? '').toString();
-    final priceNewVal = _toDouble(r.unitPriceNewSyp ?? r.unit_price_new_syp);
-    final priceUsdVal = _toDouble(r.unitPriceUsd ?? r.unit_price_usd);
-    final qtyVal = _toDouble(r.stockQty ?? r.stock_qty);
+    final unitVal = (r.unit ?? 'قطعة').toString();
+    final wholesaleVal = _toDouble(r.wholesale ?? r.wholesalePrice ?? r.unitPriceNewSyp);
 
-    try {
-      return ProductModel(
-        id: idVal,
-        sku: skuVal,
-        name: nameVal,
-      );
-    } catch (_) {
-      final dynamic ctor = ProductModel;
-      return ctor(
-        idVal,
-        skuVal,
-        nameVal,
-        priceNewVal,
-        priceUsdVal,
-        qtyVal,
-      );
-    }
+    return ProductModel(
+      id: idVal,
+      sku: skuVal,
+      name: nameVal,
+      unit: unitVal,
+      wholesale: wholesaleVal,
+    );
   }
 
   double _toDouble(dynamic val) {
