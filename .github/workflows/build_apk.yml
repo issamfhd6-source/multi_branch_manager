@@ -41,20 +41,78 @@ jobs:
         run: |
           rm -rf android
           flutter create --platforms=android --org com.example .
-          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle*
-          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdk 34/g' android/app/build.gradle*
-          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle*
-          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdk 34/g' android/app/build.gradle*
-          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle*
-          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdk 21/g' android/app/build.gradle*
           python3 - <<'EOF'
-          p = "android/build.gradle"
-          with open(p, "r", encoding="utf-8") as f:
-              content = f.read()
-          block = "ext {\n    flutter = [\n        compileSdkVersion: 34,\n        targetSdkVersion: 34,\n        minSdkVersion: 21,\n        ndkVersion: '25.1.8937393'\n    ]\n}\n\n"
-          if "flutter = [" not in content:
-              with open(p, "w", encoding="utf-8") as f:
-                  f.write(block + content)
+          import pathlib, re
+
+          kotlin_ver = "2.0.21"
+
+          settings_gradle = pathlib.Path("android/settings.gradle")
+          if settings_gradle.exists():
+              s_text = settings_gradle.read_text(encoding="utf-8")
+              s_text = re.sub(
+                  r'(id\s+["\']org\.jetbrains\.kotlin\.android["\']\s+version\s+["\'])[^"\']+(["\'])',
+                  rf'\g<1>{kotlin_ver}\g<2>',
+                  s_text,
+              )
+              settings_gradle.write_text(s_text, encoding="utf-8")
+
+          root_gradle = pathlib.Path("android/build.gradle")
+          if root_gradle.exists():
+              r_text = root_gradle.read_text(encoding="utf-8")
+              if re.search(r"ext\.kotlin_version\s*=", r_text):
+                  r_text = re.sub(
+                      r"ext\.kotlin_version\s*=\s*['\"][^'\"]+['\"]",
+                      f"ext.kotlin_version = '{kotlin_ver}'",
+                      r_text,
+                  )
+              else:
+                  r_text = (
+                      "ext {\n"
+                      f"    kotlin_version = '{kotlin_ver}'\n"
+                      "    flutter = [\n"
+                      "        compileSdkVersion: 34,\n"
+                      "        targetSdkVersion: 34,\n"
+                      "        minSdkVersion: 21,\n"
+                      "        ndkVersion: '25.1.8937393'\n"
+                      "    ]\n"
+                      "}\n\n"
+                      + r_text
+                  )
+              if "flutter = [" not in r_text:
+                  r_text = (
+                      "ext {\n"
+                      "    flutter = [\n"
+                      "        compileSdkVersion: 34,\n"
+                      "        targetSdkVersion: 34,\n"
+                      "        minSdkVersion: 21,\n"
+                      "        ndkVersion: '25.1.8937393'\n"
+                      "    ]\n"
+                      "}\n\n"
+                      + r_text
+                  )
+              root_gradle.write_text(r_text, encoding="utf-8")
+
+          for path_str, is_kts in [
+              ("android/app/build.gradle", False),
+              ("android/app/build.gradle.kts", True),
+          ]:
+              p = pathlib.Path(path_str)
+              if not p.exists():
+                  continue
+              lines = p.read_text(encoding="utf-8").splitlines()
+              out = []
+              for line in lines:
+                  s = line.lstrip()
+                  ind = line[: len(line) - len(s)]
+                  if re.match(r"^(compileSdkVersion|compileSdk)\b", s):
+                      out.append(f"{ind}compileSdk = 34" if is_kts else f"{ind}compileSdk 34")
+                  elif re.match(r"^(targetSdkVersion|targetSdk)\b", s):
+                      out.append(f"{ind}targetSdk = 34" if is_kts else f"{ind}targetSdk 34")
+                  elif re.match(r"^(minSdkVersion|minSdk)\b", s):
+                      out.append(f"{ind}minSdk = 21" if is_kts else f"{ind}minSdk 21")
+                  else:
+                      out.append(line)
+              p.write_text("\n".join(out) + "\n", encoding="utf-8")
           EOF
 
       - name: Build release APK
