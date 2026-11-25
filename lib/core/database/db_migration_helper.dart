@@ -1,28 +1,35 @@
 import 'package:drift/drift.dart';
 
-import 'app_database.dart';
-
 class DbMigrationHelper {
-  DbMigrationHelper._();
+  static Future<void> runSafeMigration(
+    Migrator m,
+    int from,
+    int to,
+    Future<void> Function(Migrator migrator, int oldVersion, int newVersion)
+        customStep,
+  ) async {
+    if (from == to) return;
+    await customStep(m, from, to);
+  }
 
-  static MigrationStrategy buildStrategy() {
-    return MigrationStrategy(
-      onCreate: (Migrator m) async {
-        await m.createAll();
-      },
-      onUpgrade: (Migrator m, int from, int to) async {
-        for (var version = from; version < to; version++) {
-          switch (version) {
-            case 1:
-              break;
-            default:
-              break;
-          }
+  static Future<void> runBatchSafe(
+    dynamic executorOrMigrator,
+    void Function(dynamic batch) operations,
+  ) async {
+    if (executorOrMigrator == null) return;
+    try {
+      await (executorOrMigrator as dynamic).batch((dynamic b) {
+        operations(b);
+      });
+    } catch (_) {
+      try {
+        final dynamic db = (executorOrMigrator as dynamic).database;
+        if (db != null) {
+          await db.batch((dynamic b) {
+            operations(b);
+          });
         }
-      },
-      beforeOpen: (OpeningDetails details) async {
-        await details.batch((batch) {});
-      },
-    );
+      } catch (_) {}
+    }
   }
 }
