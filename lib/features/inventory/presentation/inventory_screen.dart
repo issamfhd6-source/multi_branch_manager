@@ -25,15 +25,8 @@ class InventoryScreen extends StatefulWidget {
 }
 
 class _InventoryScreenState extends State<InventoryScreen> {
-  final _nameCtrl = TextEditingController();
-  final _skuCtrl = TextEditingController();
-  final _costNewCtrl = TextEditingController();
-  final _priceNewCtrl = TextEditingController();
-  final _qtyCtrl = TextEditingController(text: '10');
-
+  bool _loading = false;
   List<ProductModel> _products = [];
-  bool _loading = true;
-  bool _saving = false;
 
   @override
   void initState() {
@@ -41,76 +34,117 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _loadProducts();
   }
 
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _skuCtrl.dispose();
-    _costNewCtrl.dispose();
-    _priceNewCtrl.dispose();
-    _qtyCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadProducts() async {
     setState(() => _loading = true);
     try {
       final list = await widget.inventoryService.getAllProducts();
       if (!mounted) return;
-      setState(() {
-        _products = list;
-        _loading = false;
-      });
+      setState(() => _products = list);
       widget.onProductsChanged?.call(list);
-    } catch (_) {
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل المخزون: $e')),
+      );
+    } finally {
       if (mounted) {
         setState(() => _loading = false);
       }
     }
   }
 
-  Future<void> _addProduct() async {
-    if (_saving) return;
-    final name = _nameCtrl.text.trim();
-    if (name.isEmpty) return;
+  Future<void> _openProductDialog({ProductModel? existing}) async {
+    final idCtrl = TextEditingController(
+      text: existing?.id ?? 'prod_${DateTime.now().millisecondsSinceEpoch}',
+    );
+    final skuCtrl = TextEditingController(text: existing?.sku ?? '');
+    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final priceCtrl = TextEditingController(
+      text: existing != null ? existing.unitPriceNewSyp.toString() : '',
+    );
+    final qtyCtrl = TextEditingController(
+      text: existing != null ? existing.stockQty.toString() : '0',
+    );
 
-    setState(() => _saving = true);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(existing == null ? 'إضافة مادة' : 'تعديل مادة'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: skuCtrl,
+                decoration: const InputDecoration(labelText: 'رمز المادة (SKU)'),
+              ),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'اسم المادة'),
+              ),
+              TextField(
+                controller: priceCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'السعر (ل.س جديدة)',
+                ),
+              ),
+              TextField(
+                controller: qtyCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'الكمية'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+
+    if (saved != true) return;
+
+    final sku = skuCtrl.text.trim();
+    final name = nameCtrl.text.trim();
+    if (sku.isEmpty || name.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى إدخال رمز المادة واسمها.')),
+      );
+      return;
+    }
+
+    final priceNewSyp = SafeNumberParser.parseDouble(priceCtrl.text);
+    final qty = SafeNumberParser.parseDouble(qtyCtrl.text);
+
     try {
-      final cost =
-          SafeNumberParser.parseDouble(_costNewCtrl.text, fallback: 0);
-      final price =
-          SafeNumberParser.parseDouble(_priceNewCtrl.text, fallback: 0);
-      final qty = SafeNumberParser.parseDouble(_qtyCtrl.text, fallback: 0);
-
       await widget.inventoryService.upsertProduct(
         session: widget.session,
+        id: idCtrl.text.trim(),
+        sku: sku,
         name: name,
-        sku: _skuCtrl.text.trim().isEmpty ? null : _skuCtrl.text.trim(),
-        costNewSyp: cost,
-        priceNewSyp: price,
-        initialBranchId: widget.branchId,
-        initialQty: qty,
+        unitPriceNewSyp: priceNewSyp,
+        stockQty: qty,
+        branchId: widget.branchId,
       );
-
-      _nameCtrl.clear();
-      _skuCtrl.clear();
-      _costNewCtrl.clear();
-      _priceNewCtrl.clear();
-      _qtyCtrl.text = '10';
-
       await _loadProducts();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ المنتج وتحديث المخزون.')),
+        const SnackBar(content: Text('تم حفظ المادة بنجاح.')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر حفظ المنتج: $e')),
+        SnackBar(content: Text('تعذر حفظ المادة: $e')),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
     }
   }
 
@@ -118,137 +152,47 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('إدارة المخزون'),
+        title: const Text('المخزون'),
         actions: [
           IconButton(
             tooltip: 'تحديث',
-            onPressed: _loadProducts,
+            onPressed: _loading ? null : _loadProducts,
             icon: const Icon(Icons.refresh),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(14),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'إضافة / تحديث منتج (بالليرة الجديدة)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'اسم المنتج',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _costNewCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'التكلفة (ل.س جديدة)',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _priceNewCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'سعر البيع (ل.س جديدة)',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _qtyCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'الكمية الأولية',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _skuCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'رمز SKU (اختياري)',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  FilledButton(
-                    onPressed: _saving ? null : _addProduct,
-                    child: Text(_saving ? 'جاري الحفظ...' : 'حفظ المنتج'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'قائمة المنتجات',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 6),
-          if (_loading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else if (_products.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text('لا توجد منتجات مضافة بعد.'),
-              ),
-            )
-          else
-            ..._products.map(
-              (p) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(p.name),
-                  subtitle: Text(
-                    'البيع: ${DualSypFormatter.formatDualFromNew(p.price)}\n'
-                    'التكلفة: ${DualSypFormatter.formatDualFromNew(p.cost)}',
-                  ),
-                ),
-              ),
-            ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openProductDialog(),
+        icon: const Icon(Icons.add),
+        label: const Text('مادة جديدة'),
       ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _products.isEmpty
+              ? const Center(
+                  child: Text('لا توجد مواد في المخزون بعد.'),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 84),
+                  itemCount: _products.length,
+                  itemBuilder: (context, index) {
+                    final item = _products[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        title: Text(item.name),
+                        subtitle: Text(
+                          'SKU: ${item.sku} | الكمية: ${item.stockQty}\n'
+                          'السعر: ${DualSypFormatter.formatDualFromNew(item.unitPriceNewSyp)}',
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () => _openProductDialog(existing: item),
+                        ),
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }
