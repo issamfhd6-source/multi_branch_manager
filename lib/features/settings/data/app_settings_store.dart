@@ -10,8 +10,8 @@ class AppSettingsStore {
 
   AppSettingsStore(this._db, this._permissions);
 
-  Future> loadSettings() async {
-    final rows = await _db.select(_db.appSettings).get();
+  Map<String, dynamic> loadSettings() {
+    final rows = _db.select(_db.appSettings).get();
     final map = <String, dynamic>{
       'dark_mode': false,
       'dual_syp_ratio': 100,
@@ -30,14 +30,14 @@ class AppSettingsStore {
     required AuthSession session,
     required String key,
     required dynamic value,
-  }) async {
-    await _permissions.enforce(
+  }) {
+    _permissions.enforce(
       session: session,
       action: 'manage_settings',
       entity: 'app_settings',
     );
 
-    await _db.into(_db.appSettings).insertOnConflictUpdate(
+    _db.into(_db.appSettings).insertOnConflictUpdate(
           AppSettingsCompanion.insert(
             key: key,
             value: jsonEncode(value),
