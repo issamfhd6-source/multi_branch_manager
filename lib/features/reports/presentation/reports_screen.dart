@@ -21,51 +21,63 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
-  bool _loading = true;
-  List<BranchRaceEntry> _race = [];
+  bool _loading = false;
   String? _exportedCsv;
+  List<dynamic> _race = [];
 
   @override
   void initState() {
     super.initState();
-    _loadRace();
+    _loadReports();
   }
 
-  Future<void> _loadRace() async {
+  Future<void> _loadReports() async {
     setState(() => _loading = true);
     try {
-      final data = await widget.reportsService.getBranchRace(
+      await widget.reportsService.buildSalesSummary(
         session: widget.session,
+        branchId: widget.branchId,
       );
       if (!mounted) return;
       setState(() {
-        _race = data;
-        _loading = false;
+        _race = [];
       });
-    } catch (_) {
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل التقارير: $e')),
+      );
+    } finally {
       if (mounted) {
         setState(() => _loading = false);
       }
     }
   }
 
-  void _exportCsv() {
-    final csv = widget.reportsService.exportBranchRaceCsv(_race);
-    setState(() => _exportedCsv = csv);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم تجهيز نص التصدير CSV بنجاح.')),
-    );
+  Future<void> _exportCsv() async {
+    final buffer = StringBuffer()
+      ..writeln('branch_id,invoices_count,sales_new_syp,profit_new_syp');
+    for (final entry in _race) {
+      final dynamic item = entry;
+      buffer.writeln(
+        '${item?.branchId ?? ''},'
+        '${item?.invoiceCount ?? 0},'
+        '${item?.salesNewSyp ?? 0},'
+        '${item?.profitNewSyp ?? 0}',
+      );
+    }
+    setState(() => _exportedCsv = buffer.toString());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('التقارير وسباق الفروع'),
+        title: const Text('التقارير'),
         actions: [
           IconButton(
             tooltip: 'تحديث',
-            onPressed: _loadRace,
+            onPressed: _loading ? null : _loadReports,
             icon: const Icon(Icons.refresh),
           ),
           IconButton(
@@ -89,18 +101,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   )
                 else
                   ..._race.map(
-                    (entry) => Card(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: ListTile(
-                        leading: CircleAvatar(child: Text('#${entry.rank}')),
-                        title: Text('الفرع: ${entry.branchId}'),
-                        subtitle: Text(
-                          'الفواتير: ${entry.invoiceCount}\n'
-                          'المبيعات: ${DualSypFormatter.formatDualFromNew(entry.salesNewSyp)}\n'
-                          'الربح: ${DualSypFormatter.formatDualFromNew(entry.profitNewSyp)}',
+                    (entry) {
+                      final dynamic item = entry;
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        child: ListTile(
+                          leading: CircleAvatar(child: Text('#${item?.rank ?? ''}')),
+                          title: Text('الفرع: ${item?.branchId ?? ''}'),
+                          subtitle: Text(
+                            'الفواتير: ${item?.invoiceCount ?? 0}\n'
+                            'المبيعات: ${DualSypFormatter.formatDualFromNew(item?.salesNewSyp ?? 0)}\n'
+                            'الربح: ${DualSypFormatter.formatDualFromNew(item?.profitNewSyp ?? 0)}',
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 if (_exportedCsv != null) ...[
                   const SizedBox(height: 12),
