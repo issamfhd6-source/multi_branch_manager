@@ -49,14 +49,15 @@ jobs:
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdk 21/g' android/app/build.gradle*
           cat << 'EOF' >> android/build.gradle
 
-          subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty('android')) {
-                      project.android {
-                          if (compileSdkVersion == null) {
-                              compileSdkVersion 34
-                          }
-                      }
+          subprojects { project ->
+              project.plugins.withId('com.android.library') {
+                  project.android {
+                      compileSdk 34
+                  }
+              }
+              project.plugins.withId('com.android.application') {
+                  project.android {
+                      compileSdk 34
                   }
               }
           }
