@@ -44,18 +44,27 @@ jobs:
           python3 - <<'EOF'
           import pathlib, re
 
-          for path_str in ["android/app/build.gradle", "android/app/build.gradle.kts"]:
+          def patch_gradle_file(path_str: str, is_kts: bool) -> None:
               p = pathlib.Path(path_str)
               if not p.exists():
-                  continue
-              text = p.read_text(encoding="utf-8")
-              text = re.sub(r'compileSdkVersion\s+[^\s\n]+', 'compileSdkVersion 34', text)
-              text = re.sub(r'compileSdk\s*=?\s*[^\s\n]+', 'compileSdk = 34' if path_str.endswith('.kts') else 'compileSdk 34', text)
-              text = re.sub(r'targetSdkVersion\s+[^\s\n]+', 'targetSdkVersion 34', text)
-              text = re.sub(r'targetSdk\s*=?\s*[^\s\n]+', 'targetSdk = 34' if path_str.endswith('.kts') else 'targetSdk 34', text)
-              text = re.sub(r'minSdkVersion\s+[^\s\n]+', 'minSdkVersion 21', text)
-              text = re.sub(r'minSdk\s*=?\s*[^\s\n]+', 'minSdk = 21' if path_str.endswith('.kts') else 'minSdk 21', text)
-              p.write_text(text, encoding="utf-8")
+                  return
+              lines = p.read_text(encoding="utf-8").splitlines()
+              out = []
+              for line in lines:
+                  stripped = line.lstrip()
+                  indent = line[:len(line) - len(stripped)]
+                  if re.match(r'^(compileSdkVersion|compileSdk)\b', stripped):
+                      out.append(f"{indent}compileSdk = 34" if is_kts else f"{indent}compileSdk 34")
+                  elif re.match(r'^(targetSdkVersion|targetSdk)\b', stripped):
+                      out.append(f"{indent}targetSdk = 34" if is_kts else f"{indent}targetSdk 34")
+                  elif re.match(r'^(minSdkVersion|minSdk)\b', stripped):
+                      out.append(f"{indent}minSdk = 21" if is_kts else f"{indent}minSdk 21")
+                  else:
+                      out.append(line)
+              p.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+          patch_gradle_file("android/app/build.gradle", False)
+          patch_gradle_file("android/app/build.gradle.kts", True)
           EOF
 
       - name: Build release APK
