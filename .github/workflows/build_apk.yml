@@ -25,11 +25,6 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install Android SDK 34
-        run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
-
       - name: Install dependencies
         run: flutter pub get
 
@@ -116,3 +111,4 @@ jobs:
         with:
           name: multi-branch-manager-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          
