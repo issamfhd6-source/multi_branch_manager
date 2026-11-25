@@ -108,7 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               title: const Text('المستخدم الحالي'),
               subtitle: Text(
-                '${widget.session.user.name} (${widget.session.user.role.name})',
+                '${widget.session.user.name} (${widget.session.role.name})',
               ),
             ),
           ),
