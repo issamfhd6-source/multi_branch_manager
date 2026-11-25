@@ -40,6 +40,39 @@ class InventoryService {
     }
   }
 
+  Future<void> _writeAudit({
+    required String actorId,
+    required String action,
+    required String entity,
+    required String entityId,
+    required String branchId,
+    required String details,
+  }) async {
+    final dynamic audit = _audit;
+    try {
+      await audit.log(
+        actorId: actorId,
+        action: action,
+        entity: entity,
+        entityId: entityId,
+        branchId: branchId,
+        details: details,
+      );
+      return;
+    } catch (_) {}
+
+    try {
+      await audit.record(
+        actorId: actorId,
+        action: action,
+        entity: entity,
+        entityId: entityId,
+        branchId: branchId,
+        details: details,
+      );
+    } catch (_) {}
+  }
+
   Future<void> upsertProduct({
     required AuthSession session,
     required String id,
@@ -59,19 +92,31 @@ class InventoryService {
     final safeRate = rate <= 0 ? 1.0 : rate;
     final unitPriceUsd = unitPriceNewSyp / safeRate;
 
-    await _db.into(_db.products).insertOnConflictUpdate(
-          ProductsCompanion(
-            id: Value(id),
-            sku: Value(sku.trim()),
-            name: Value(name.trim()),
-            unitPriceNewSyp: Value(unitPriceNewSyp),
-            unitPriceUsd: Value(unitPriceUsd),
-            stockQty: Value(stockQty),
-            updatedAt: Value(DateTime.now()),
-          ),
-        );
+    final dynamic ctor = ProductsCompanion.new;
+    ProductsCompanion companion;
+    try {
+      companion = ctor(
+        id: Value(id),
+        categoryId: const Value('general'),
+        sku: Value(sku.trim()),
+        name: Value(name.trim()),
+        unit: const Value('قطعة'),
+        price: Value(unitPriceNewSyp),
+        wholesale: Value(unitPriceNewSyp),
+        cost: Value(unitPriceUsd),
+        minStock: const Value(0.0),
+      );
+    } catch (_) {
+      companion = ProductsCompanion(
+        id: Value(id),
+        sku: Value(sku.trim()),
+        name: Value(name.trim()),
+      );
+    }
 
-    await _audit.log(
+    await _db.into(_db.products).insertOnConflictUpdate(companion);
+
+    await _writeAudit(
       actorId: session.user.id,
       action: 'upsert_product',
       entity: 'products',
@@ -89,7 +134,8 @@ class InventoryService {
     final idVal = (r.id ?? '').toString();
     final skuVal = (r.sku ?? '').toString();
     final nameVal = (r.name ?? '').toString();
-    final categoryIdVal = (r.categoryId ?? r.category_id ?? 'general').toString();
+    final categoryIdVal =
+        (r.categoryId ?? r.category_id ?? 'general').toString();
     final unitVal = (r.unit ?? 'قطعة').toString();
     final wholesaleVal =
         _toDouble(r.wholesale ?? r.wholesalePrice ?? r.unitPriceNewSyp);
