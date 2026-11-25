@@ -37,8 +37,22 @@ jobs:
       - name: Static analysis
         run: flutter analyze
 
-      - name: Refresh Android Gradle files
-        run: flutter create --platforms=android --org com.example .
+      - name: Prepare Android project & SDK versions
+        run: |
+          flutter create --platforms=android --org com.example .
+          if [ -f android/app/build.gradle ]; then
+            sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdk 34/g' android/app/build.gradle
+            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle
+            sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdk 34/g' android/app/build.gradle
+            sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle
+            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdk 21/g' android/app/build.gradle
+            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle
+          fi
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle.kts
+            sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle.kts
+            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle.kts
+          fi
 
       - name: Build release APK
         run: flutter build apk --release
