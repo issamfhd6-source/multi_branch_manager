@@ -47,21 +47,6 @@ jobs:
           sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdk 34/g' android/app/build.gradle*
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle*
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdk 21/g' android/app/build.gradle*
-          cat << 'EOF' >> android/build.gradle
-
-          subprojects { project ->
-              project.plugins.withId('com.android.library') {
-                  project.android {
-                      compileSdk 34
-                  }
-              }
-              project.plugins.withId('com.android.application') {
-                  project.android {
-                      compileSdk 34
-                  }
-              }
-          }
-          EOF
 
       - name: Build release APK
         run: flutter build apk --release
@@ -71,3 +56,4 @@ jobs:
         with:
           name: multi-branch-manager-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          
