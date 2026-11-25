@@ -27,11 +27,14 @@ class ReportsService {
     int paidCount = 0;
 
     for (final inv in invoices) {
-      totalNewSyp += inv.totalNewSyp;
-      totalUsd += inv.totalUsd;
-      if (inv.status == 'paid') {
-        paidCount++;
-      }
+      final dynamic row = inv;
+      final newVal = row.totalNewSyp ?? row.total_new_syp ?? 0;
+      final usdVal = row.totalUsd ?? row.total_usd ?? 0;
+      final statusVal = row.status ?? '';
+
+      if (newVal is num) totalNewSyp += newVal.toDouble();
+      if (usdVal is num) totalUsd += usdVal.toDouble();
+      if (statusVal == 'paid') paidCount++;
     }
 
     return {
