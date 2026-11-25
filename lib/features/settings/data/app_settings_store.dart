@@ -26,7 +26,7 @@ class AppSettingsStore {
     return map;
   }
 
-  Future<void> saveSetting({
+  void saveSetting({
     required AuthSession session,
     required String key,
     required dynamic value,
