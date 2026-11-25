@@ -1,6 +1,10 @@
 class DualSypFormatter {
   static const int ratio = 100;
 
+  static String formatDualFromNew(num newSyp) {
+    return formatFromNew(newSyp);
+  }
+
   static String formatFromNew(num newSyp) {
     final oldSyp = (newSyp * ratio).round();
     return '${_group(newSyp.round())} ل.س جديدة (${_group(oldSyp)} قديمة)';
