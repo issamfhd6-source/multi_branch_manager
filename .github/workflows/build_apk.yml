@@ -39,20 +39,24 @@ jobs:
 
       - name: Prepare Android project & SDK versions
         run: |
+          rm -rf android
           flutter create --platforms=android --org com.example .
-          if [ -f android/app/build.gradle ]; then
-            sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdk 34/g' android/app/build.gradle
-            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle
-            sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdk 34/g' android/app/build.gradle
-            sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle
-            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdk 21/g' android/app/build.gradle
-            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle
-          fi
-          if [ -f android/app/build.gradle.kts ]; then
-            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 34/g' android/app/build.gradle.kts
-            sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle.kts
-            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle.kts
-          fi
+          python3 - <<'EOF'
+          import pathlib, re
+
+          for path_str in ["android/app/build.gradle", "android/app/build.gradle.kts"]:
+              p = pathlib.Path(path_str)
+              if not p.exists():
+                  continue
+              text = p.read_text(encoding="utf-8")
+              text = re.sub(r'compileSdkVersion\s+[^\s\n]+', 'compileSdkVersion 34', text)
+              text = re.sub(r'compileSdk\s*=?\s*[^\s\n]+', 'compileSdk = 34' if path_str.endswith('.kts') else 'compileSdk 34', text)
+              text = re.sub(r'targetSdkVersion\s+[^\s\n]+', 'targetSdkVersion 34', text)
+              text = re.sub(r'targetSdk\s*=?\s*[^\s\n]+', 'targetSdk = 34' if path_str.endswith('.kts') else 'targetSdk 34', text)
+              text = re.sub(r'minSdkVersion\s+[^\s\n]+', 'minSdkVersion 21', text)
+              text = re.sub(r'minSdk\s*=?\s*[^\s\n]+', 'minSdk = 21' if path_str.endswith('.kts') else 'minSdk 21', text)
+              p.write_text(text, encoding="utf-8")
+          EOF
 
       - name: Build release APK
         run: flutter build apk --release
