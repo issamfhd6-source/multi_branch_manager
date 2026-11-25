@@ -1,6 +1,31 @@
 import 'package:drift/drift.dart';
 
 class DbMigrationHelper {
+  static MigrationStrategy buildStrategy({
+    Future<void> Function(Migrator m)? onCreate,
+    Future<void> Function(Migrator m, int from, int to)? onUpgrade,
+    Future<void> Function(OpeningDetails details)? beforeOpen,
+  }) {
+    return MigrationStrategy(
+      onCreate: (Migrator m) async {
+        await m.createAll();
+        if (onCreate != null) {
+          await onCreate(m);
+        }
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        if (onUpgrade != null) {
+          await onUpgrade(m, from, to);
+        }
+      },
+      beforeOpen: (OpeningDetails details) async {
+        if (beforeOpen != null) {
+          await beforeOpen(details);
+        }
+      },
+    );
+  }
+
   static Future<void> runSafeMigration(
     Migrator m,
     int from,
