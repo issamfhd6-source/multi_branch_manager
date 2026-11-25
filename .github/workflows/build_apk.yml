@@ -44,50 +44,49 @@ jobs:
           python3 - <<'EOF'
           import pathlib, re
 
+          kotlin_ver = "1.9.24"
+
+          settings_gradle = pathlib.Path("android/settings.gradle")
+          if settings_gradle.exists():
+              s_text = settings_gradle.read_text(encoding="utf-8")
+              s_text = re.sub(
+                  r'(id\s+["\']org\.jetbrains\.kotlin\.android["\']\s+version\s+["\'])[^"\']+(["\'])',
+                  rf'\g<1>{kotlin_ver}\g<2>',
+                  s_text,
+              )
+              settings_gradle.write_text(s_text, encoding="utf-8")
+
           root_gradle = pathlib.Path("android/build.gradle")
           if root_gradle.exists():
-              root_text = root_gradle.read_text(encoding="utf-8")
-              ext_block = """buildscript {
-              ext.kotlin_version = '1.9.24'
-              ext.flutter = [
-                  compileSdkVersion: 34,
-                  targetSdkVersion: 34,
-                  minSdkVersion: 21,
-                  ndkVersion: "25.1.8937393"
-              ]
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.3.2'
-                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-              }
-          }
-          """
-              if "ext.flutter" not in root_text:
-                  if "allprojects {" in root_text:
-                      root_text = root_text.replace("allprojects {", ext_block + "\nallprojects {", 1)
-                  else:
-                      root_text = ext_block + "\n" + root_text
-              root_gradle.write_text(root_text, encoding="utf-8")
+              r_text = root_gradle.read_text(encoding="utf-8")
+              if "ext.kotlin_version" in r_text:
+                  r_text = re.sub(
+                      r"ext\.kotlin_version\s*=\s*['\"][^'\"]+['\"]",
+                      f"ext.kotlin_version = '{kotlin_ver}'",
+                      r_text,
+                  )
+              else:
+                  r_text = f"buildscript {{\n    ext.kotlin_version = '{kotlin_ver}'\n}}\n" + r_text
+              root_gradle.write_text(r_text, encoding="utf-8")
 
-          app_gradle = pathlib.Path("android/app/build.gradle")
-          if app_gradle.exists():
-              lines = app_gradle.read_text(encoding="utf-8").splitlines()
+          for path_str, is_kts in [("android/app/build.gradle", False), ("android/app/build.gradle.kts", True)]:
+              p = pathlib.Path(path_str)
+              if not p.exists():
+                  continue
+              lines = p.read_text(encoding="utf-8").splitlines()
               out = []
               for line in lines:
                   s = line.lstrip()
                   ind = line[:len(line) - len(s)]
                   if re.match(r'^(compileSdkVersion|compileSdk)\b', s):
-                      out.append(f"{ind}compileSdk 34")
+                      out.append(f"{ind}compileSdk = 34" if is_kts else f"{ind}compileSdk 34")
                   elif re.match(r'^(targetSdkVersion|targetSdk)\b', s):
-                      out.append(f"{ind}targetSdk 34")
+                      out.append(f"{ind}targetSdk = 34" if is_kts else f"{ind}targetSdk 34")
                   elif re.match(r'^(minSdkVersion|minSdk)\b', s):
-                      out.append(f"{ind}minSdk 21")
+                      out.append(f"{ind}minSdk = 21" if is_kts else f"{ind}minSdk 21")
                   else:
                       out.append(line)
-              app_gradle.write_text("\n".join(out) + "\n", encoding="utf-8")
+              p.write_text("\n".join(out) + "\n", encoding="utf-8")
           EOF
 
       - name: Build release APK
@@ -98,3 +97,4 @@ jobs:
         with:
           name: multi-branch-manager-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          
