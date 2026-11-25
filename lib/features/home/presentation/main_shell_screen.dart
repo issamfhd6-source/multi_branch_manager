@@ -11,7 +11,7 @@ import '../../pos/presentation/pos_screen.dart';
 import '../../reports/data/reports_service.dart';
 import '../../reports/presentation/reports_screen.dart';
 import '../../reset/data/reset_service.dart';
-import '../../settings/data/settings_service.dart';
+import '../../settings/data/app_settings_store.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../users/data/audit_service.dart';
 import '../../users/domain/auth_models.dart';
@@ -47,7 +47,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
   late final InventoryService _inventoryService;
   late final PosService _posService;
   late final ReportsService _reportsService;
-  late final SettingsService _settingsService;
+  late final AppSettingsStore _settingsService;
   late final ResetService _resetService;
 
   String get _activeBranchId => widget.session.user.branchIds.isNotEmpty
@@ -68,7 +68,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
         InventoryService(widget.db, _permissions, _audit, _rateService);
     _posService = PosService(widget.db, _permissions, _audit, _rateService);
     _reportsService = ReportsService(widget.db, _permissions);
-    _settingsService = SettingsService(widget.db, _permissions);
+    _settingsService = AppSettingsStore(widget.db, _permissions);
     _resetService = ResetService(widget.db, _permissions, _audit);
     _bootstrapInitialProducts();
   }
