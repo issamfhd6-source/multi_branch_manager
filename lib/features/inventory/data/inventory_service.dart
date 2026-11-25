@@ -25,6 +25,21 @@ class InventoryService {
     return rows.map(_mapRowToProduct).toList();
   }
 
+  Future<double> _resolveRate() async {
+    final dynamic svc = _rateService;
+    try {
+      final res = await svc.getCurrentRate();
+      return _toDouble(res);
+    } catch (_) {
+      try {
+        final res = await svc.getLatestRate();
+        return _toDouble(res);
+      } catch (_) {
+        return 100.0;
+      }
+    }
+  }
+
   Future<void> upsertProduct({
     required AuthSession session,
     required String id,
@@ -40,7 +55,7 @@ class InventoryService {
       entity: 'products',
     );
 
-    final rate = await _rateService.getCurrentRate();
+    final rate = await _resolveRate();
     final safeRate = rate <= 0 ? 1.0 : rate;
     final unitPriceUsd = unitPriceNewSyp / safeRate;
 
@@ -74,6 +89,7 @@ class InventoryService {
     final idVal = (r.id ?? '').toString();
     final skuVal = (r.sku ?? '').toString();
     final nameVal = (r.name ?? '').toString();
+    final categoryIdVal = (r.categoryId ?? r.category_id ?? 'general').toString();
     final unitVal = (r.unit ?? 'قطعة').toString();
     final wholesaleVal =
         _toDouble(r.wholesale ?? r.wholesalePrice ?? r.unitPriceNewSyp);
@@ -85,6 +101,7 @@ class InventoryService {
 
     return ProductModel(
       id: idVal,
+      categoryId: categoryIdVal,
       sku: skuVal,
       name: nameVal,
       unit: unitVal,
