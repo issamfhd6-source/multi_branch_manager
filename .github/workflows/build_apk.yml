@@ -42,46 +42,73 @@ jobs:
           rm -rf android
           flutter create --platforms=android --org com.example .
           SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          if [ -d "$SDK_DIR/platforms/android-35" ]; then
-            mv "$SDK_DIR/platforms/android-35" "$SDK_DIR/platforms/android-35.bak" || true
+          if [ -d "$SDK_DIR/platforms/android-35.bak" ] && [ ! -d "$SDK_DIR/platforms/android-35" ]; then
+            mv "$SDK_DIR/platforms/android-35.bak" "$SDK_DIR/platforms/android-35" || true
           fi
           python3 - <<'EOF'
           import pathlib, re
 
           kotlin_ver = "2.0.21"
 
-          settings_gradle = pathlib.Path("android/settings.gradle")
-          if settings_gradle.exists():
-              s_text = settings_gradle.read_text(encoding="utf-8")
-              s_text = re.sub(
-                  r'(id\s+["\']org\.jetbrains\.kotlin\.android["\']\s+version\s+["\'])[^"\']+(["\'])',
+          def update_kotlin_version(text: str) -> str:
+              text = re.sub(
+                  r'(id\s*\(?\s*["\']org\.jetbrains\.kotlin\.android["\']\s*\)?\s*(?:version\s*)?["\'])[^"\']+(["\'])',
                   rf'\g<1>{kotlin_ver}\g<2>',
-                  s_text,
+                  text,
               )
-              settings_gradle.write_text(s_text, encoding="utf-8")
+              text = re.sub(
+                  r'(kotlin\s*\(\s*["\']android["\']\s*\)\s*version\s*["\'])[^"\']+(["\'])',
+                  rf'\g<1>{kotlin_ver}\g<2>',
+                  text,
+              )
+              text = re.sub(
+                  r'(org\.jetbrains\.kotlin:kotlin-gradle-plugin:)[^"\'\s]+',
+                  rf'\g<1>{kotlin_ver}',
+                  text,
+              )
+              text = re.sub(
+                  r"(ext\.kotlin_version\s*=\s*)['\"][^'\"]+['\"]",
+                  rf"\g<1>'{kotlin_ver}'",
+                  text,
+              )
+              return text
+
+          for fname in [
+              "android/settings.gradle",
+              "android/settings.gradle.kts",
+              "android/build.gradle",
+              "android/build.gradle.kts",
+          ]:
+              p = pathlib.Path(fname)
+              if p.exists():
+                  p.write_text(update_kotlin_version(p.read_text(encoding="utf-8")), encoding="utf-8")
 
           root_gradle = pathlib.Path("android/build.gradle")
           if root_gradle.exists():
               r_text = root_gradle.read_text(encoding="utf-8")
-              if re.search(r"ext\.kotlin_version\s*=", r_text):
-                  r_text = re.sub(
-                      r"ext\.kotlin_version\s*=\s*['\"][^'\"]+['\"]",
-                      f"ext.kotlin_version = '{kotlin_ver}'",
-                      r_text,
-                  )
-              if "flutter = [" not in r_text:
-                  r_text = (
-                      "ext {\n"
-                      f"    kotlin_version = '{kotlin_ver}'\n"
-                      "    flutter = [\n"
-                      "        compileSdkVersion: 34,\n"
-                      "        targetSdkVersion: 34,\n"
-                      "        minSdkVersion: 21,\n"
-                      "        ndkVersion: '25.1.8937393'\n"
-                      "    ]\n"
-                      "}\n\n"
-                      + r_text
-                  )
+              if "ext.kotlin_version" not in r_text:
+                  r_text = f"buildscript {{\n    ext.kotlin_version = '{kotlin_ver}'\n}}\n\n" + r_text
+              force_block = """
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                compileSdkVersion 34
+                buildToolsVersion "34.0.0"
+            }
+        }
+        project.configurations.all {
+            resolutionStrategy.eachDependency { details ->
+                if (details.requested.group == 'org.jetbrains.kotlin') {
+                    details.useVersion '2.0.21'
+                }
+            }
+        }
+    }
+}
+"""
+              if "subprojects {" not in r_text:
+                  r_text = r_text + "\n" + force_block
               root_gradle.write_text(r_text, encoding="utf-8")
 
           for path_str, is_kts in [
