@@ -1,0 +1,51 @@
+name: 3b1 - Fix android-35 android.jar
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-jar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Inspect and repair android-35/android.jar
+        run: |
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          TARGET_JAR="$SDK_DIR/platforms/android-35/android.jar"
+
+          echo "Checking existing android.jar..."
+          unzip -t "$TARGET_JAR" >/dev/null 2>&1 && echo "JAR zip structure is OK" || echo "JAR zip structure is CORRUPT"
+
+          echo "Searching for alternative android.jar files on runner..."
+          find /usr/local/lib/android/sdk/platforms -name "android.jar" 2>/dev/null || true
+
+          # محاولة تحميل منصة android-35 من مستودع Android SDK الرسمي مباشرة إن وجد sdkmanager أو عبر curl
+          SDKMANAGER=$(find "$SDK_DIR" -name "sdkmanager" -type f 2>/dev/null | head -n 1 || true)
+          echo "SDKMANAGER path: ${SDKMANAGER:-none}"
+
+          # إنشاء نسخة احتياطية وتجربة استبدالها بنسخة سليمة من منصة أخرى مؤقتاً أو عبر sdkmanager
+          mkdir -p /tmp/jar_backup
+          cp "$TARGET_JAR" /tmp/jar_backup/android-35.orig.jar || true
+
+          if [ -n "$SDKMANAGER" ]; then
+            rm -rf "$SDK_DIR/platforms/android-35"
+            yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" "platforms;android-35" || true
+          fi
+
+          if [ ! -f "$TARGET_JAR" ] || ! unzip -t "$TARGET_JAR" >/dev/null 2>&1; then
+            echo "Fallback: copying android-34 android.jar as temporary stand-in for testing..."
+            mkdir -p "$SDK_DIR/platforms/android-35"
+            cp "$SDK_DIR/platforms/android-34/android.jar" "$TARGET_JAR"
+          fi
+
+          ls -lh "$TARGET_JAR"
+          unzip -t "$TARGET_JAR" >/dev/null && echo "Final android-35/android.jar is valid!"
+          
