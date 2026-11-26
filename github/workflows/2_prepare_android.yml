@@ -1,0 +1,111 @@
+name: 2 - Prepare Android
+
+on:
+  workflow_dispatch:
+
+jobs:
+  prepare-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Create and configure Android project
+        run: |
+          rm -rf android
+          flutter create --platforms=android --org com.example .
+          python3 - <<'EOF'
+          import pathlib, re
+
+          kotlin_ver = "2.0.21"
+
+          for fname in [
+              "android/settings.gradle",
+              "android/settings.gradle.kts",
+              "android/build.gradle",
+              "android/build.gradle.kts",
+          ]:
+              p = pathlib.Path(fname)
+              if not p.exists():
+                  continue
+              txt = p.read_text(encoding="utf-8")
+              txt = re.sub(
+                  r'(org\.jetbrains\.kotlin\.android["\']?\s*\)?\s*(?:version\s*)?["\'])[0-9]+\.[0-9]+\.[0-9]+',
+                  rf'\g<1>{kotlin_ver}',
+                  txt,
+              )
+              txt = re.sub(
+                  r'(kotlin_version\s*=\s*["\'])[0-9]+\.[0-9]+\.[0-9]+(["\'])',
+                  rf'\g<1>{kotlin_ver}\g<2>',
+                  txt,
+              )
+              p.write_text(txt, encoding="utf-8")
+
+          root_gradle = pathlib.Path("android/build.gradle")
+          if root_gradle.exists():
+              rtxt = root_gradle.read_text(encoding="utf-8")
+              hook = f"""
+allprojects {{
+    configurations.all {{
+        resolutionStrategy.eachDependency {{ details ->
+            if (details.requested.group == 'org.jetbrains.kotlin') {{
+                details.useVersion '{kotlin_ver}'
+            }}
+        }}
+    }}
+}}
+
+subprojects {{
+    afterEvaluate {{ project ->
+        if (project.hasProperty('android')) {{
+            project.android {{
+                compileSdkVersion 34
+            }}
+        }}
+    }}
+}}
+"""
+              if "subprojects {" not in rtxt:
+                  root_gradle.write_text(rtxt + "\n" + hook, encoding="utf-8")
+
+          for app_file, is_kts in [
+              ("android/app/build.gradle", False),
+              ("android/app/build.gradle.kts", True),
+          ]:
+              ap = pathlib.Path(app_file)
+              if not ap.exists():
+                  continue
+              lines = ap.read_text(encoding="utf-8").splitlines()
+              new_lines = []
+              for line in lines:
+                  s = line.lstrip()
+                  ind = line[: len(line) - len(s)]
+                  if re.match(r"^compileSdk(Version)?(\s*=|\s+)", s):
+                      new_lines.append(f"{ind}compileSdk = 34" if is_kts else f"{ind}compileSdk 34")
+                  elif re.match(r"^targetSdk(Version)?(\s*=|\s+)", s):
+                      new_lines.append(f"{ind}targetSdk = 34" if is_kts else f"{ind}targetSdk 34")
+                  elif re.match(r"^minSdk(Version)?(\s*=|\s+)", s):
+                      new_lines.append(f"{ind}minSdk = 21" if is_kts else f"{ind}minSdk 21")
+                  else:
+                      new_lines.append(line)
+              ap.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+          EOF
+
+      - name: Inspect Android configuration
+        run: |
+          ls -la android android/app
+          grep -nE "kotlin|compileSdk|targetSdk|minSdk" android/settings.gradle android/settings.gradle.kts android/build.gradle android/build.gradle.kts android/app/build.gradle android/app/build.gradle.kts 2>/dev/null || true
+          
