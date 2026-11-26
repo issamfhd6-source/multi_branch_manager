@@ -32,11 +32,14 @@ jobs:
             dart run build_runner build --delete-conflicting-outputs
           fi
 
-      - name: Prepare Android SDK 35 and project
+      - name: Prepare Android SDK and project
         run: |
           SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          rm -rf "$SDK_DIR/platforms/android-35" "$SDK_DIR/platforms/android-35.bak"
-          yes | sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          SDKMANAGER=$(find "$SDK_DIR" -name "sdkmanager" -type f 2>/dev/null | head -n 1)
+          if [ -n "$SDKMANAGER" ]; then
+            rm -rf "$SDK_DIR/platforms/android-35" "$SDK_DIR/platforms/android-35.bak"
+            yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" "platforms;android-35" "build-tools;35.0.0" || true
+          fi
 
           rm -rf android
           flutter create --platforms=android --org com.example .
