@@ -36,11 +36,16 @@ jobs:
         run: |
           rm -rf android
           flutter create --platforms=android --org com.example .
-          python3 - <<'EOF'
+          cat << 'SCRIPT' > /tmp/prep.py
           import pathlib, re
 
           ver = "2.0.21"
-          for f in ["android/settings.gradle", "android/settings.gradle.kts", "android/build.gradle", "android/build.gradle.kts"]:
+          for f in [
+              "android/settings.gradle",
+              "android/settings.gradle.kts",
+              "android/build.gradle",
+              "android/build.gradle.kts",
+          ]:
               p = pathlib.Path(f)
               if p.exists():
                   t = p.read_text(encoding="utf-8")
@@ -53,7 +58,7 @@ jobs:
               rt = rp.read_text(encoding="utf-8")
               header = (
                   "buildscript {\n"
-                  f"    ext.kotlin_version = '{ver}'\n"
+                  "    ext.kotlin_version = '" + ver + "'\n"
                   "    ext.flutter = [\n"
                   "        compileSdkVersion: 34,\n"
                   "        targetSdkVersion: 34,\n"
@@ -62,31 +67,30 @@ jobs:
                   "    ]\n"
                   "}\n\n"
               )
-              footer = f"""
-allprojects {{
-    configurations.all {{
-        resolutionStrategy.eachDependency {{ details ->
-            if (details.requested.group == 'org.jetbrains.kotlin') {{
-                details.useVersion '{ver}'
-            }}
-        }}
-    }}
-}}
-
-subprojects {{
-    afterEvaluate {{ project ->
-        if (project.hasProperty('android')) {{
-            project.android {{
-                compileSdkVersion 34
-            }}
-        }}
-    }}
-}}
-"""
+              footer = (
+                  "\nallprojects {\n"
+                  "    configurations.all {\n"
+                  "        resolutionStrategy.eachDependency { details ->\n"
+                  "            if (details.requested.group == 'org.jetbrains.kotlin') {\n"
+                  "                details.useVersion '" + ver + "'\n"
+                  "            }\n"
+                  "        }\n"
+                  "    }\n"
+                  "}\n\n"
+                  "subprojects {\n"
+                  "    afterEvaluate { project ->\n"
+                  "        if (project.hasProperty('android')) {\n"
+                  "            project.android {\n"
+                  "                compileSdkVersion 34\n"
+                  "            }\n"
+                  "        }\n"
+                  "    }\n"
+                  "}\n"
+              )
               if "ext.flutter" not in rt:
                   rt = header + rt
               if "subprojects {" not in rt:
-                  rt = rt + "\n" + footer
+                  rt = rt + footer
               rp.write_text(rt, encoding="utf-8")
 
           for f, kts in [("android/app/build.gradle", False), ("android/app/build.gradle.kts", True)]:
@@ -96,7 +100,7 @@ subprojects {{
                   out = []
                   for ln in lines:
                       s = ln.lstrip()
-                      ind = ln[:len(ln)-len(s)]
+                      ind = ln[: len(ln) - len(s)]
                       if re.match(r"^(compileSdkVersion|compileSdk)\b", s):
                           out.append(f"{ind}compileSdk = 34" if kts else f"{ind}compileSdk 34")
                       elif re.match(r"^(targetSdkVersion|targetSdk)\b", s):
@@ -106,7 +110,8 @@ subprojects {{
                       else:
                           out.append(ln)
                   p.write_text("\n".join(out) + "\n", encoding="utf-8")
-          EOF
+          SCRIPT
+          python3 /tmp/prep.py
 
       - name: Build release APK
         run: flutter build apk --release
@@ -116,4 +121,3 @@ subprojects {{
         with:
           name: multi-branch-manager-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-          
