@@ -1,0 +1,47 @@
+name: 3b2a - Test aapt2 with android-35 jar
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-aapt2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Inspect SDK platforms, build-tools, and test aapt2
+        run: |
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "=== Platforms ==="
+          ls -la "$SDK_DIR/platforms" || true
+          echo "=== Build-tools ==="
+          ls -la "$SDK_DIR/build-tools" || true
+
+          AAPT2=$(find "$SDK_DIR/build-tools" -name "aapt2" -type f 2>/dev/null | sort -V | tail -n 1 || true)
+          echo "Using aapt2: ${AAPT2:-none}"
+
+          TARGET_JAR="$SDK_DIR/platforms/android-35/android.jar"
+          EXT15_JAR="$SDK_DIR/platforms/android-35-ext15/android.jar"
+          SDK34_JAR="$SDK_DIR/platforms/android-34/android.jar"
+
+          echo "=== Testing current android-35/android.jar with aapt2 dump ==="
+          if [ -n "$AAPT2" ] && [ -f "$TARGET_JAR" ]; then
+            "$AAPT2" dump badging "$TARGET_JAR" 2>&1 || true
+            "$AAPT2" dump resources "$TARGET_JAR" >/dev/null 2>&1 && echo "aapt2 dump resources OK" || echo "aapt2 dump resources FAILED"
+          fi
+
+          echo "=== Testing alternative jars with aapt2 ==="
+          for cand in "$EXT15_JAR" "$SDK34_JAR"; do
+            if [ -f "$cand" ] && [ -n "$AAPT2" ]; then
+              echo "Testing candidate: $cand"
+              "$AAPT2" dump resources "$cand" >/dev/null 2>&1 && echo "  -> OK with aapt2" || echo "  -> FAILED with aapt2"
+            fi
+          done
+          
