@@ -32,12 +32,14 @@ jobs:
             dart run build_runner build --delete-conflicting-outputs
           fi
 
-      - name: Prepare Android project
+      - name: Prepare Android SDK 35 and project
         run: |
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          rm -rf "$SDK_DIR/platforms/android-35" "$SDK_DIR/platforms/android-35.bak"
+          yes | sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
           rm -rf android
           flutter create --platforms=android --org com.example .
-          echo "=== BEFORE ==="
-          grep -rnE "kotlin|compileSdk|targetSdk|minSdk" android/ || true
 
           cat << 'SCRIPT' > /tmp/prep.py
           import pathlib, re
@@ -63,46 +65,6 @@ jobs:
                   )
                   p.write_text(txt, encoding="utf-8")
 
-          rp = pathlib.Path("android/build.gradle")
-          if rp.exists():
-              rt = rp.read_text(encoding="utf-8")
-              header = (
-                  "buildscript {\n"
-                  "    ext.kotlin_version = '" + ver + "'\n"
-                  "    ext.flutter = [\n"
-                  "        compileSdkVersion: 34,\n"
-                  "        targetSdkVersion: 34,\n"
-                  "        minSdkVersion: 21,\n"
-                  "        ndkVersion: '25.1.8937393'\n"
-                  "    ]\n"
-                  "}\n\n"
-              )
-              footer = (
-                  "\nallprojects {\n"
-                  "    configurations.all {\n"
-                  "        resolutionStrategy.eachDependency { details ->\n"
-                  "            if (details.requested.group == 'org.jetbrains.kotlin') {\n"
-                  "                details.useVersion '" + ver + "'\n"
-                  "            }\n"
-                  "        }\n"
-                  "    }\n"
-                  "}\n\n"
-                  "subprojects {\n"
-                  "    afterEvaluate { project ->\n"
-                  "        if (project.hasProperty('android')) {\n"
-                  "            project.android {\n"
-                  "                compileSdkVersion 34\n"
-                  "            }\n"
-                  "        }\n"
-                  "    }\n"
-                  "}\n"
-              )
-              if "ext.flutter" not in rt:
-                  rt = header + rt
-              if "subprojects {" not in rt:
-                  rt = rt + footer
-              rp.write_text(rt, encoding="utf-8")
-
           for p in pathlib.Path("android/app").glob("build.gradle*"):
               kts = p.name.endswith(".kts")
               lines = p.read_text(encoding="utf-8").splitlines()
@@ -111,9 +73,9 @@ jobs:
                   s = ln.lstrip()
                   ind = ln[: len(ln) - len(s)]
                   if re.match(r"^(compileSdkVersion|compileSdk)\b", s):
-                      out.append(f"{ind}compileSdk = 34" if kts else f"{ind}compileSdk 34")
+                      out.append(f"{ind}compileSdk = 35" if kts else f"{ind}compileSdk 35")
                   elif re.match(r"^(targetSdkVersion|targetSdk)\b", s):
-                      out.append(f"{ind}targetSdk = 34" if kts else f"{ind}targetSdk 34")
+                      out.append(f"{ind}targetSdk = 35" if kts else f"{ind}targetSdk 35")
                   elif re.match(r"^(minSdkVersion|minSdk)\b", s):
                       out.append(f"{ind}minSdk = 21" if kts else f"{ind}minSdk 21")
                   else:
@@ -122,8 +84,6 @@ jobs:
           SCRIPT
 
           python3 /tmp/prep.py
-          echo "=== AFTER ==="
-          grep -rnE "kotlin|compileSdk|targetSdk|minSdk" android/ || true
 
       - name: Build release APK
         run: flutter build apk --release
