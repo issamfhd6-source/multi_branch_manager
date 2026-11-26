@@ -1,0 +1,79 @@
+name: 3 - Build Release APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.0"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift files if needed
+        run: |
+          if grep -rn "@DriftDatabase" lib/ >/dev/null 2>&1; then
+            dart run build_runner build --delete-conflicting-outputs
+          fi
+
+      - name: Prepare and inspect Android files
+        run: |
+          rm -rf android
+          flutter create --platforms=android --org com.example .
+          python3 -c '
+          import pathlib, re
+
+          ver = "2.0.21"
+          for f in ["android/settings.gradle", "android/settings.gradle.kts", "android/build.gradle", "android/build.gradle.kts"]:
+              p = pathlib.Path(f)
+              if p.exists():
+                  t = p.read_text(encoding="utf-8")
+                  t = re.sub(r"(org\.jetbrains\.kotlin\.android[^\n]*?)[0-9]+\.[0-9]+\.[0-9]+", r"\g<1>" + ver, t)
+                  t = re.sub(r"(kotlin_version\s*=\s*[\x27\"])[0-9]+\.[0-9]+\.[0-9]+", r"\g<1>" + ver, t)
+                  p.write_text(t, encoding="utf-8")
+
+          for f, kts in [("android/app/build.gradle", False), ("android/app/build.gradle.kts", True)]:
+              p = pathlib.Path(f)
+              if p.exists():
+                  lines = p.read_text(encoding="utf-8").splitlines()
+                  out = []
+                  for ln in lines:
+                      s = ln.lstrip()
+                      ind = ln[:len(ln)-len(s)]
+                      if re.match(r"^compileSdk(Version)?(\s*=|\s+)", s):
+                          out.append(f"{ind}compileSdk = 34" if kts else f"{ind}compileSdk 34")
+                      elif re.match(r"^targetSdk(Version)?(\s*=|\s+)", s):
+                          out.append(f"{ind}targetSdk = 34" if kts else f"{ind}targetSdk 34")
+                      elif re.match(r"^minSdk(Version)?(\s*=|\s+)", s):
+                          out.append(f"{ind}minSdk = 21" if kts else f"{ind}minSdk 21")
+                      else:
+                          out.append(ln)
+                  p.write_text("\n".join(out) + "\n", encoding="utf-8")
+          '
+          grep -nE "kotlin|compileSdk|targetSdk|minSdk" android/settings.gradle android/settings.gradle.kts android/build.gradle android/build.gradle.kts android/app/build.gradle android/app/build.gradle.kts 2>/dev/null || true
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-branch-manager-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          
