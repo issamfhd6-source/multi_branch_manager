@@ -41,15 +41,51 @@ jobs:
         run: |
           rm -rf android
           flutter create --platforms=android --org com.example .
-          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          if [ -d "$SDK_DIR/platforms/android-35.bak" ] && [ ! -d "$SDK_DIR/platforms/android-35" ]; then
-            mv "$SDK_DIR/platforms/android-35.bak" "$SDK_DIR/platforms/android-35" || true
-          fi
-          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(org\.jetbrains\.kotlin\.android["\x27]?\)?\s*(version\s*)?["\x27])[0-9]+\.[0-9]+\.[0-9]+/\12.0.21/g' {} +
-          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(kotlin_version\s*=\s*["\x27])[0-9]+\.[0-9]+\.[0-9]+/\12.0.21/g' {} +
-          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(compileSdk(Version)?\s*(=|\s)\s*)[0-9]+/\134/g' {} +
-          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(targetSdk(Version)?\s*(=|\s)\s*)[0-9]+/\134/g' {} +
-          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(minSdk(Version)?\s*(=|\s)\s*)[0-9]+/\121/g' {} +
+          python3 - <<'EOF'
+          import pathlib, re
+
+          kotlin_ver = "2.0.21"
+
+          for sname in ["android/settings.gradle", "android/settings.gradle.kts"]:
+              sp = pathlib.Path(sname)
+              if sp.exists():
+                  st = sp.read_text(encoding="utf-8")
+                  st = re.sub(r'(org\.jetbrains\.kotlin\.android["\']?\)?\s*(?:version\s*)?["\'])[0-9]+\.[0-9]+\.[0-9]+', rf'\g<1>{kotlin_ver}', st)
+                  sp.write_text(st, encoding="utf-8")
+
+          rp = pathlib.Path("android/build.gradle")
+          if rp.exists():
+              rt = rp.read_text(encoding="utf-8")
+              rt = re.sub(r"(ext\.kotlin_version\s*=\s*)['\"][^'\"]+['\"]", rf"\g<1>'{kotlin_ver}'", rt)
+              ext_header = (
+                  "buildscript {\n"
+                  f"    ext.kotlin_version = '{kotlin_ver}'\n"
+                  "    ext.flutter = [\n"
+                  "        compileSdkVersion: 34,\n"
+                  "        targetSdkVersion: 34,\n"
+                  "        minSdkVersion: 21,\n"
+                  "        ndkVersion: '25.1.8937393'\n"
+                  "    ]\n"
+                  "}\n\n"
+              )
+              if "ext.flutter" not in rt:
+                  rt = ext_header + rt
+              rp.write_text(rt, encoding="utf-8")
+
+          for aname, is_kts in [("android/app/build.gradle", False), ("android/app/build.gradle.kts", True)]:
+              ap = pathlib.Path(aname)
+              if ap.exists():
+                  at = ap.read_text(encoding="utf-8")
+                  if is_kts:
+                      at = re.sub(r"\bcompileSdk\s*=\s*[^\s\n]+", "compileSdk = 34", at)
+                      at = re.sub(r"\btargetSdk\s*=\s*[^\s\n]+", "targetSdk = 34", at)
+                      at = re.sub(r"\bminSdk\s*=\s*[^\s\n]+", "minSdk = 21", at)
+                  else:
+                      at = re.sub(r"\bcompileSdkVersion\s+[^\s\n]+", "compileSdkVersion 34", at)
+                      at = re.sub(r"\btargetSdkVersion\s+[^\s\n]+", "targetSdkVersion 34", at)
+                      at = re.sub(r"\bminSdkVersion\s+[^\s\n]+", "minSdkVersion 21", at)
+                  ap.write_text(at, encoding="utf-8")
+          EOF
 
       - name: Build release APK
         run: flutter build apk --release
