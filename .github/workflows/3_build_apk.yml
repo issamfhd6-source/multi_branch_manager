@@ -32,11 +32,11 @@ jobs:
             dart run build_runner build --delete-conflicting-outputs
           fi
 
-      - name: Prepare and inspect Android files
+      - name: Prepare Android project
         run: |
           rm -rf android
           flutter create --platforms=android --org com.example .
-          python3 -c '
+          python3 - <<'EOF'
           import pathlib, re
 
           ver = "2.0.21"
@@ -48,6 +48,47 @@ jobs:
                   t = re.sub(r"(kotlin_version\s*=\s*[\x27\"])[0-9]+\.[0-9]+\.[0-9]+", r"\g<1>" + ver, t)
                   p.write_text(t, encoding="utf-8")
 
+          rp = pathlib.Path("android/build.gradle")
+          if rp.exists():
+              rt = rp.read_text(encoding="utf-8")
+              header = (
+                  "buildscript {\n"
+                  f"    ext.kotlin_version = '{ver}'\n"
+                  "    ext.flutter = [\n"
+                  "        compileSdkVersion: 34,\n"
+                  "        targetSdkVersion: 34,\n"
+                  "        minSdkVersion: 21,\n"
+                  "        ndkVersion: '25.1.8937393'\n"
+                  "    ]\n"
+                  "}\n\n"
+              )
+              footer = f"""
+allprojects {{
+    configurations.all {{
+        resolutionStrategy.eachDependency {{ details ->
+            if (details.requested.group == 'org.jetbrains.kotlin') {{
+                details.useVersion '{ver}'
+            }}
+        }}
+    }}
+}}
+
+subprojects {{
+    afterEvaluate {{ project ->
+        if (project.hasProperty('android')) {{
+            project.android {{
+                compileSdkVersion 34
+            }}
+        }}
+    }}
+}}
+"""
+              if "ext.flutter" not in rt:
+                  rt = header + rt
+              if "subprojects {" not in rt:
+                  rt = rt + "\n" + footer
+              rp.write_text(rt, encoding="utf-8")
+
           for f, kts in [("android/app/build.gradle", False), ("android/app/build.gradle.kts", True)]:
               p = pathlib.Path(f)
               if p.exists():
@@ -56,17 +97,16 @@ jobs:
                   for ln in lines:
                       s = ln.lstrip()
                       ind = ln[:len(ln)-len(s)]
-                      if re.match(r"^compileSdk(Version)?(\s*=|\s+)", s):
+                      if re.match(r"^(compileSdkVersion|compileSdk)\b", s):
                           out.append(f"{ind}compileSdk = 34" if kts else f"{ind}compileSdk 34")
-                      elif re.match(r"^targetSdk(Version)?(\s*=|\s+)", s):
+                      elif re.match(r"^(targetSdkVersion|targetSdk)\b", s):
                           out.append(f"{ind}targetSdk = 34" if kts else f"{ind}targetSdk 34")
-                      elif re.match(r"^minSdk(Version)?(\s*=|\s+)", s):
+                      elif re.match(r"^(minSdkVersion|minSdk)\b", s):
                           out.append(f"{ind}minSdk = 21" if kts else f"{ind}minSdk 21")
                       else:
                           out.append(ln)
                   p.write_text("\n".join(out) + "\n", encoding="utf-8")
-          '
-          grep -nE "kotlin|compileSdk|targetSdk|minSdk" android/settings.gradle android/settings.gradle.kts android/build.gradle android/build.gradle.kts android/app/build.gradle android/app/build.gradle.kts 2>/dev/null || true
+          EOF
 
       - name: Build release APK
         run: flutter build apk --release
