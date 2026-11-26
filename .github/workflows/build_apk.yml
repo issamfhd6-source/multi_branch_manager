@@ -45,94 +45,11 @@ jobs:
           if [ -d "$SDK_DIR/platforms/android-35.bak" ] && [ ! -d "$SDK_DIR/platforms/android-35" ]; then
             mv "$SDK_DIR/platforms/android-35.bak" "$SDK_DIR/platforms/android-35" || true
           fi
-          python3 - <<'EOF'
-          import pathlib, re
-
-          kotlin_ver = "2.0.21"
-
-          def update_kotlin_version(text: str) -> str:
-              text = re.sub(
-                  r'(id\s*\(?\s*["\']org\.jetbrains\.kotlin\.android["\']\s*\)?\s*(?:version\s*)?["\'])[^"\']+(["\'])',
-                  rf'\g<1>{kotlin_ver}\g<2>',
-                  text,
-              )
-              text = re.sub(
-                  r'(kotlin\s*\(\s*["\']android["\']\s*\)\s*version\s*["\'])[^"\']+(["\'])',
-                  rf'\g<1>{kotlin_ver}\g<2>',
-                  text,
-              )
-              text = re.sub(
-                  r'(org\.jetbrains\.kotlin:kotlin-gradle-plugin:)[^"\'\s]+',
-                  rf'\g<1>{kotlin_ver}',
-                  text,
-              )
-              text = re.sub(
-                  r"(ext\.kotlin_version\s*=\s*)['\"][^'\"]+['\"]",
-                  rf"\g<1>'{kotlin_ver}'",
-                  text,
-              )
-              return text
-
-          for fname in [
-              "android/settings.gradle",
-              "android/settings.gradle.kts",
-              "android/build.gradle",
-              "android/build.gradle.kts",
-          ]:
-              p = pathlib.Path(fname)
-              if p.exists():
-                  p.write_text(update_kotlin_version(p.read_text(encoding="utf-8")), encoding="utf-8")
-
-          root_gradle = pathlib.Path("android/build.gradle")
-          if root_gradle.exists():
-              r_text = root_gradle.read_text(encoding="utf-8")
-              if "ext.kotlin_version" not in r_text:
-                  r_text = f"buildscript {{\n    ext.kotlin_version = '{kotlin_ver}'\n}}\n\n" + r_text
-              force_block = """
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty('android')) {
-            project.android {
-                compileSdkVersion 34
-                buildToolsVersion "34.0.0"
-            }
-        }
-        project.configurations.all {
-            resolutionStrategy.eachDependency { details ->
-                if (details.requested.group == 'org.jetbrains.kotlin') {
-                    details.useVersion '2.0.21'
-                }
-            }
-        }
-    }
-}
-"""
-              if "subprojects {" not in r_text:
-                  r_text = r_text + "\n" + force_block
-              root_gradle.write_text(r_text, encoding="utf-8")
-
-          for path_str, is_kts in [
-              ("android/app/build.gradle", False),
-              ("android/app/build.gradle.kts", True),
-          ]:
-              p = pathlib.Path(path_str)
-              if not p.exists():
-                  continue
-              lines = p.read_text(encoding="utf-8").splitlines()
-              out = []
-              for line in lines:
-                  s = line.lstrip()
-                  ind = line[: len(line) - len(s)]
-                  if re.match(r"^(compileSdkVersion|compileSdk)\b", s):
-                      out.append(f"{ind}compileSdk = 34" if is_kts else f"{ind}compileSdk 34")
-                  elif re.match(r"^(targetSdkVersion|targetSdk)\b", s):
-                      out.append(f"{ind}targetSdk = 34" if is_kts else f"{ind}targetSdk 34")
-                  elif re.match(r"^(minSdkVersion|minSdk)\b", s):
-                      out.append(f"{ind}minSdk = 21" if is_kts else f"{ind}minSdk 21")
-                  else:
-                      out.append(line)
-              p.write_text("\n".join(out) + "\n", encoding="utf-8")
-          EOF
+          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(org\.jetbrains\.kotlin\.android["\x27]?\)?\s*(version\s*)?["\x27])[0-9]+\.[0-9]+\.[0-9]+/\12.0.21/g' {} +
+          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(kotlin_version\s*=\s*["\x27])[0-9]+\.[0-9]+\.[0-9]+/\12.0.21/g' {} +
+          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(compileSdk(Version)?\s*(=|\s)\s*)[0-9]+/\134/g' {} +
+          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(targetSdk(Version)?\s*(=|\s)\s*)[0-9]+/\134/g' {} +
+          find android -type f \( -name "*.gradle" -o -name "*.gradle.kts" \) -exec sed -i -E 's/(minSdk(Version)?\s*(=|\s)\s*)[0-9]+/\121/g' {} +
 
       - name: Build release APK
         run: flutter build apk --release
