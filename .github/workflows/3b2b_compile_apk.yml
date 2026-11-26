@@ -1,0 +1,121 @@
+name: 3b2b - Build Release APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compile-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.0"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies and generate Drift
+        run: |
+          flutter pub get
+          if grep -rn "@DriftDatabase" lib/ >/dev/null 2>&1; then
+            dart run build_runner build --delete-conflicting-outputs
+          fi
+
+      - name: Prepare Android project for SDK 34
+        run: |
+          rm -rf android
+          flutter create --platforms=android --org com.example .
+
+          cat << 'SCRIPT' > /tmp/fix_gradle.py
+          import pathlib, re
+
+          ver = "2.0.21"
+          for p in pathlib.Path("android").rglob("*"):
+              if p.is_file() and p.name in {
+                  "settings.gradle",
+                  "settings.gradle.kts",
+                  "build.gradle",
+                  "build.gradle.kts",
+              }:
+                  txt = p.read_text(encoding="utf-8")
+                  txt = re.sub(
+                      r'(org\.jetbrains\.kotlin\.android["\']?\s*\)?\s*(?:version\s*)?["\'])[0-9]+\.[0-9]+\.[0-9]+',
+                      r'\g<1>' + ver,
+                      txt,
+                  )
+                  txt = re.sub(
+                      r'(kotlin_version\s*=\s*["\'])[0-9]+\.[0-9]+\.[0-9]+',
+                      r'\g<1>' + ver,
+                      txt,
+                  )
+                  p.write_text(txt, encoding="utf-8")
+
+          rp = pathlib.Path("android/build.gradle")
+          if rp.exists():
+              rt = rp.read_text(encoding="utf-8")
+              ext_block = (
+                  "buildscript {\n"
+                  "    ext.kotlin_version = '" + ver + "'\n"
+                  "    ext.flutter = [\n"
+                  "        compileSdkVersion: 34,\n"
+                  "        targetSdkVersion: 34,\n"
+                  "        minSdkVersion: 21,\n"
+                  "        ndkVersion: '25.1.8937393'\n"
+                  "    ]\n"
+                  "}\n\n"
+              )
+              sub_block = (
+                  "\nsubprojects {\n"
+                  "    afterEvaluate { project ->\n"
+                  "        if (project.hasProperty('android')) {\n"
+                  "            project.android {\n"
+                  "                compileSdkVersion 34\n"
+                  "            }\n"
+                  "        }\n"
+                  "    }\n"
+                  "}\n"
+              )
+              if "ext.flutter" not in rt:
+                  rt = ext_block + rt
+              if "subprojects {" not in rt:
+                  rt = rt + sub_block
+              rp.write_text(rt, encoding="utf-8")
+
+          for p in pathlib.Path("android/app").glob("build.gradle*"):
+              kts = p.name.endswith(".kts")
+              lines = p.read_text(encoding="utf-8").splitlines()
+              out = []
+              for ln in lines:
+                  s = ln.lstrip()
+                  ind = ln[: len(ln) - len(s)]
+                  if re.match(r"^(compileSdkVersion|compileSdk)\b", s):
+                      out.append(f"{ind}compileSdk = 34" if kts else f"{ind}compileSdk 34")
+                  elif re.match(r"^(targetSdkVersion|targetSdk)\b", s):
+                      out.append(f"{ind}targetSdk = 34" if kts else f"{ind}targetSdk 34")
+                  elif re.match(r"^(minSdkVersion|minSdk)\b", s):
+                      out.append(f"{ind}minSdk = 21" if kts else f"{ind}minSdk 21")
+                  else:
+                      out.append(ln)
+              p.write_text("\n".join(out) + "\n", encoding="utf-8")
+          SCRIPT
+
+          python3 /tmp/fix_gradle.py
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-branch-manager-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          
